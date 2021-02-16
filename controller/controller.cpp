@@ -41,6 +41,9 @@
 #define RUMBLE_MAX_POWER 100
 #define RUMBLE_DELAY std::chrono::milliseconds(10)
 
+#define SWAP_DEAD_ZONE 24576
+#define CLAMP(v, lo, hi) (v < lo) ? lo : (hi < v) ? hi : v
+
 Controller::Controller(
     SendPacket sendPacket
 ) : GipDevice(sendPacket),
@@ -124,6 +127,22 @@ void Controller::serialNumberReceived(const SerialData *serial)
 
 void Controller::inputReceived(const InputData *input)
 {
+
+    if (analogSwapRelease && input->buttons.stickLeft && input->buttons.stickRight) {
+        analogSwap = !analogSwap;
+        analogSwapRelease = false;
+
+        if (analogSwap) {
+            Log::info("Using DPAD for direction");
+        } else {
+            Log::info("Using Left-Stick for direction");
+        }
+    }
+
+    if(!analogSwapRelease && input->buttons.stickLeft == 0 and input->buttons.stickRight == 0) {
+        analogSwapRelease = true;
+    }
+
     inputDevice.setKey(BTN_START, input->buttons.start);
     inputDevice.setKey(BTN_SELECT, input->buttons.select);
     inputDevice.setKey(BTN_A, input->buttons.a);
@@ -134,20 +153,37 @@ void Controller::inputReceived(const InputData *input)
     inputDevice.setKey(BTN_TR, input->buttons.bumperRight);
     inputDevice.setKey(BTN_THUMBL, input->buttons.stickLeft);
     inputDevice.setKey(BTN_THUMBR, input->buttons.stickRight);
-    inputDevice.setAxis(ABS_X, input->stickLeftX);
     inputDevice.setAxis(ABS_RX, input->stickRightX);
-    inputDevice.setAxis(ABS_Y, ~input->stickLeftY);
     inputDevice.setAxis(ABS_RY, ~input->stickRightY);
     inputDevice.setAxis(ABS_Z, input->triggerLeft);
     inputDevice.setAxis(ABS_RZ, input->triggerRight);
-    inputDevice.setAxis(
-        ABS_HAT0X,
-        input->buttons.dpadRight - input->buttons.dpadLeft
-    );
-    inputDevice.setAxis(
-        ABS_HAT0Y,
-        input->buttons.dpadDown - input->buttons.dpadUp
-    );
+
+    if (analogSwap) {
+        //Swapped mappings
+        int16_t axisX = 0;
+        int16_t axisY = 0;
+
+        if( input->buttons.dpadRight ) axisX += 32767;
+        if( input->buttons.dpadLeft ) axisX -= 32767;
+
+        if( input->buttons.dpadUp ) axisY -= 32767;
+        if( input->buttons.dpadDown ) axisY += 32767;
+
+        bool isLeftXActive = abs(input->stickLeftX) > SWAP_DEAD_ZONE;
+        bool isLeftYActive = abs(input->stickLeftY) > SWAP_DEAD_ZONE;
+
+        inputDevice.setAxis(ABS_X, axisX);
+        inputDevice.setAxis(ABS_Y, axisY);
+        inputDevice.setAxis(ABS_HAT0X, isLeftXActive ? CLAMP(input->stickLeftX, -1, 1) : 0);
+        inputDevice.setAxis(ABS_HAT0Y, isLeftYActive ? CLAMP(~input->stickLeftY, -1, 1) : 0);
+    }else{
+        //Original XOW mappings
+        inputDevice.setAxis(ABS_X, input->stickLeftX);
+        inputDevice.setAxis(ABS_Y, ~input->stickLeftY);
+        inputDevice.setAxis(ABS_HAT0X, input->buttons.dpadRight - input->buttons.dpadLeft);
+        inputDevice.setAxis(ABS_HAT0Y, input->buttons.dpadDown - input->buttons.dpadUp);
+    }
+
     inputDevice.report();
 }
 
@@ -222,6 +258,7 @@ void Controller::initInput(const AnnounceData *announce)
     inputDevice.addAxis(ABS_RZ, triggerConfig);
     inputDevice.addAxis(ABS_HAT0X, dpadConfig);
     inputDevice.addAxis(ABS_HAT0Y, dpadConfig);
+    Log::info("Using forked XOW version: https://github.com/Hazarth/xow. Report issues to the original repository at https://github.com/medusalix/xow!");
     inputDevice.addFeedback(FF_RUMBLE);
 
     InputDevice::DeviceConfig deviceConfig = {};

@@ -21,6 +21,13 @@
   <img src="assets/screenshot.png" alt="Screenshot">
 </p>
 
+## What is this fork about
+
+Some games under proton don't seem to accept the DPAD mappings (the DPAD would not work at all in some games).
+Using this fork of XOW I added a simple feature that allows you to press the left and right stick buttons at the same time to swap the stick and DPAD mappings.
+
+The original xow is maintained and released here: https://github.com/medusalix/xow.
+
 ## About
 
 xow is a Linux user mode driver for the Xbox One wireless dongle.

@@ -66,4 +66,6 @@ private:
     Buffer<RumbleData> rumbleBuffer;
 
     uint8_t batteryLevel = 0xff;
+    bool analogSwap = false;
+    bool analogSwapRelease = true;
 };
